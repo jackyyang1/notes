@@ -1,0 +1,173 @@
+========================== 启动 fdfs、nginx =======================================
+
+sudo service fdfs_trackerd start
+sudo service fdfs_storaged start
+sudo /usr/local/nginx/sbin/nginx
+
+========================== 启动 mysql、redis =======================================
+
+如果 mysqld.cnf 和 redis.conf 中 bind绑定了的IP地址 和 ifconfig中的 当前IP地址 不一样的话，
+或者 ifconfig中没有IP地址，或者 没有连接上 网络，
+则都无法启动 mysqld 和 redis，并报以下错：
+	Job for mysql.service failed because the control process exited with error code. 
+	See "systemctl status mysql.service" and "journalctl -xe" for details.
+
+1.
+sudo service redis start
+sudo redis-server /etc/redis/redis.conf 指定加载的配置文件
+
+2.
+sudo service mysql start
+
+
+如果报错无法连接某指定IP的MySQL：
+	查看 /etc/mysql/mysql.conf.d/mysqld.cnf 配置文件 中的 bind-address=指定IP
+	修改root用户权限：use mysql
+			  update user set host='%' where user='root'
+
+
+ps aux|grep fdfs
+root       3535  0.0  0.1 145632  2220 ?        Sl   16:57   0:00 /usr/bin/fdfs_trackerd /etc/fdfs/tracker.conf
+root       3577  0.0  0.2  82276  3376 ?        Sl   16:57   0:00 /usr/bin/fdfs_storaged /etc/fdfs/storage.conf
+
+
+
+ps aux|grep nginx
+root       3588  0.0  0.0  36708   656 ?        Ss   16:57   0:00 nginx: master process /usr/local/nginx/sbin/nginx
+nobody     3589  0.0  0.2  37252  3488 ?        S    16:57   0:00 nginx: worker process
+
+
+
+ps aux|grep redis
+redis      1425  0.1  0.3  41880  5684 ?        Ssl  16:41   0:01 /usr/bin/redis-server 192.168.80.140:6379
+
+
+
+ps aux|grep mysql
+mysql      1268  0.1  6.3 1247192 104288 ?      Ssl  16:41   0:01 /usr/sbin/mysqld
+
+
+
+
+========================== 进入 虚拟环境 =======================================
+
+workon Tab键
+workon django_py3
+
+
+如果 启动 uwsgi，就不启动 runserver
+在项目下 和manage.py同级的目录下 执行：python manage.py runserver
+
+
+========================== 手动绑定 IPV4 =======================================
+
+IPV4：192.168.80.140
+子网掩码：255.255.255.0
+网关：192.168.80.2
+DNS：192.168.80.2
+
+
+========================== settings.py 配置 =======================================
+ 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        # 'NAME': 'sz_dailyfresh',
+        'NAME': 'dailyfresh',
+        'USER': 'root',
+        'PASSWORD': 'mysql',
+        'HOST': '192.168.80.140',
+        'PORT': 3306,
+    }
+}
+
+# 发送邮件配置
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.qq.com'
+EMAIL_PORT = 25
+EMAIL_HOST_USER = '552147572@qq.com' # 你的 QQ 账号
+EMAIL_HOST_PASSWORD = 'umhovjuqgehwbcde'
+EMAIL_USE_TLS = True # 这里必须是 True，否则发送不成功
+EMAIL_FROM = '552147572@qq.com' # 你的 QQ 账号
+
+
+
+# django缓存配置-redis
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://192.168.80.140:6379/6",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+
+# 指定fdfs系统机器上nginx的ip和port
+FDFS_NGINX_URL = 'http://192.168.80.140:8888/'
+
+
+
+========================== utils 下的 fdfs 下的 client.py 配置 =======================================
+
+# 改成自己虚拟机ip
+tracker_server=192.168.80.140:22122
+
+
+
+========================== tasks.py 配置 =======================================
+
+# 因为启动的不是 Django项目，仅是开启一个新的进程（worker）去执行 tasks.py，因此 tasks.py中 需要使用到配置信息 的话，就必须特地去加载项目配置文件setting.py
+import os
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dailyfresh.settings")
+
+# 因为启动的不是 Django项目，仅是开启一个新的进程（worker）去执行 tasks.py，因此 tasks.py中 需要使用到 模型类 的话，就必须特地去加载初始化django所依赖的环境，然后再 导入对应的要使用到的 模型类
+# 而且 celery 执行的函数中，如果 要使用到的导入的模型类，那么 都必须在 django.setup()后面，进行模型类导入；如果在 django.setup() 前面就导入模型类的话，是无法把 模型类 加载进  celery 中
+import django
+django.setup()
+
+# celery 启动的 worker进程中 要使用到 导入的模型类，就必须在django.setup()之后 导入 模型类
+from goods.models import GoodsType, IndexGoodsBanner, IndexPromotionBanner, IndexTypeGoodsBanner
+
+
+# 创建一个Celery类的对象
+app = Celery('celery_tasks.tasks', broker='redis://192.168.80.140:6379/5')
+
+
+========================== 另外一台 ubuntu 启动 celery 进行异步执行 =======================================
+
+celery -A celery_tasks.tasks worker -l info
+
+
+
+========================== 启动 uwsgi  =======================================
+
+如果 启动 uwsgi，就不启动 runserver；
+
+
+	uwsgi --ini uwsgi.ini
+	uwsgi --ini uwsgi2.ini
+
+
+
+ps aux|grep uwsgi
+python     3679  3.1  2.1 144064 36056 ?        S    17:01   0:00 uwsgi --ini uwsgi.ini
+python     3681  0.0  1.8 217796 30052 ?        Sl   17:01   0:00 uwsgi --ini uwsgi.ini
+python     3682  0.0  1.8 217796 30052 ?        Sl   17:01   0:00 uwsgi --ini uwsgi.ini
+python     3684  0.0  1.8 217796 30052 ?        Sl   17:01   0:00 uwsgi --ini uwsgi.ini
+python     3685  0.0  1.8 217796 30052 ?        Sl   17:01   0:00 uwsgi --ini uwsgi.ini
+python     3691  3.0  2.1 144060 36056 ?        S    17:01   0:00 uwsgi --ini uwsgi2.ini
+python     3693  0.0  1.8 217792 30052 ?        Sl   17:01   0:00 uwsgi --ini uwsgi2.ini
+python     3694  0.0  1.8 217792 30052 ?        Sl   17:01   0:00 uwsgi --ini uwsgi2.ini
+python     3695  0.0  1.8 217792 30052 ?        Sl   17:01   0:00 uwsgi --ini uwsgi2.ini
+python     3697  0.0  1.8 217792 30052 ?        Sl   17:01   0:00 uwsgi --ini uwsgi2.ini
+
+
+========================== 访问项目主页 =======================================
+
+启动 runserver：http://localhost:8000/index
+启动 uwsgi：127.0.0.1/index
+	    127.0.0.1    访问另外一台 ubuntu的 静态首页文件
+
+
