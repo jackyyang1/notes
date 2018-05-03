@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="/static/js/jquery-1.12.4.min.js"></script>
+    <script>
+        $(function(){
+
+            /*
+            // ajax 完整写法：
+            $.ajax({
+                'url':'/area',
+                'type': 'get',
+                'dataType': 'json',
+                'data':{'parent':'none'}
+            }).done(function(dat){
+                console.log(dat);
+            }).fail(function(){
+                alert('服务器超时，请重试！')
+            })
+            */
+
+            $.get('/area', {'parent':'none'}, function(dat){
+                //console.log(dat);
+                var list = dat.list;
+                var str = '<option value="">请选择省</option>';
+
+                for (var i=0; i<list.length; i++){
+                    str += '<option value="'+ list[i].id +'">'+ list[i].atitle +'</option>';
+                }
+
+                $('#province').html(str);
+              })
+
+
+            $('#province').change(function(){
+                var val = $(this).val()
+
+                if(val=='')
+                {
+                    return;
+                }
+
+                $.get('/area', {'parent': val}, function(dat){
+
+                    var list = dat.list;
+                    var str = '<option value="">请选择市</option>';
+
+                    for (var i=0; i<list.length; i++){
+                        str += '<option value="'+ list[i].id +'">'+ list[i].atitle +'</option>';
+                    }
+
+                    $('#city').html(str);
+
+
+                })
+
+                var text = $('#province').find('option:selected').text();
+
+                $('#chose_area01').html(text);
+                $('#chose_area02').empty();
+                $('#chose_area03').empty();
+
+                $('#state').html('<option value="">请选择区县</option>');
+
+
+
+
+
+                })
+
+
+            $('#city').change(function(){
+                var val = $(this).val()
+
+                if(val=='')
+                {
+                    return;
+                }
+
+                $.get('/area', {'parent': val}, function(dat){
+
+                    var list = dat.list;
+                    var str = '<option value="">请选择区县</option>';
+
+                    for (var i=0; i<list.length; i++){
+                        str += '<option value="'+ list[i].id +'">'+ list[i].atitle +'</option>';
+                    }
+
+                    $('#state').html(str);
+
+
+                })
+
+                var text = $('#city').find('option:selected').text();
+                $('#chose_area02').html(text);
+                $('#chose_area03').empty();
+
+                })
+
+
+            $('#state').change(function(){
+                var text = $(this).find('option:selected').text();
+                $('#chose_area03').html(text);
+
+            })
+
+
+
+        })
+    </script>
+</head>
+<body>
+    <p>你选择的地区是：<span id="chose_area01"></span>
+    <span id="chose_area02"></span>
+    <span id="chose_area03"></span></p>
+    <select name="province" id="province">
+        <option value="">请选择省</option>
+    </select>
+    <select name="city" id="city">
+        <option value="">请选择市</option>
+    </select>
+    <select name="state" id="state">
+        <option value="">请选择区县</option>
+    </select>
+</body>
+</html>

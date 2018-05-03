@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <!-- 使用反向解析定义资源地址，需要先导入下面的模块 -->
+    {% load static from staticfiles %}
+
+    <!-- 静态文件路径一般的写法： -->
+    <img src="/static/img/django.jpg" alt="django图片">
+
+    <!-- 静态文件路径反向解析的写法： -->
+    <img src="{% static 'img/django.jpg' %}" alt="django图片">
+</body>
+</html>
